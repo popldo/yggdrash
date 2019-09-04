@@ -6,7 +6,10 @@ import io.yggdrash.common.contract.ContractVersion;
 import io.yggdrash.common.contract.vo.dpoa.ValidatorSet;
 import io.yggdrash.common.exception.FailedOperationException;
 import io.yggdrash.common.util.VerifierUtils;
+import io.yggdrash.contract.core.ContractEvent;
 import io.yggdrash.contract.core.ExecuteStatus;
+import io.yggdrash.contract.core.Receipt;
+import io.yggdrash.core.blockchain.osgi.ContractEventListener;
 import io.yggdrash.core.blockchain.osgi.ContractManager;
 import io.yggdrash.core.consensus.Consensus;
 import io.yggdrash.core.consensus.ConsensusBlock;
@@ -30,6 +33,7 @@ public class BlockChainImpl<T, V> implements BlockChain<T, V> {
     private static final Logger log = LoggerFactory.getLogger(BlockChainImpl.class);
 
     private final List<BranchEventListener> listenerList = new ArrayList<>();
+    private final List<ContractEventListener> contractEventListenerList = new ArrayList<>();
 
     private final Branch branch;
     private final ConsensusBlock<T> genesisBlock;
@@ -91,8 +95,6 @@ public class BlockChainImpl<T, V> implements BlockChain<T, V> {
         // TODO new Validators
         //branchStore.setValidators(branch.getValidators());
         branchStore.setBranchContracts(branch.getBranchContracts());
-
-
     }
 
     @Override
@@ -152,6 +154,14 @@ public class BlockChainImpl<T, V> implements BlockChain<T, V> {
             // BlockChainManager add nextBlock to the blockStore, set the lastConfirmedBlock to nextBlock,
             // and then batch the transactions.
             blockChainManager.addBlock(nextBlock);
+
+            // TODO Check this work well (Test required)
+            BlockRuntimeResult endBlockResult = contractManager.endBlock(nextBlock);
+            // Fire contract event
+            getContractEventList(endBlockResult).stream()
+                    .filter(event -> !contractEventListenerList.isEmpty())
+                    .forEach(event -> contractEventListenerList.forEach(l -> l.endBlock(event)));
+
             if (!listenerList.isEmpty() && broadcast) {
                 listenerList.forEach(listener -> listener.chainedBlock(nextBlock));
             }
@@ -161,6 +171,15 @@ public class BlockChainImpl<T, V> implements BlockChain<T, V> {
         }
 
         return new HashMap<>();
+    }
+
+    private List<ContractEvent> getContractEventList(BlockRuntimeResult result) {
+        List<ContractEvent> contractEventList = new ArrayList<>();
+        result.getReceipts().stream()
+                .filter(receipt -> !receipt.getEvents().isEmpty())
+                .map(Receipt::getEvents)
+                .forEach(contractEventList::addAll);
+        return contractEventList;
     }
 
     @Override
@@ -197,7 +216,7 @@ public class BlockChainImpl<T, V> implements BlockChain<T, V> {
                 return new HashMap<>();
             } else {
                 Map<String, List<String>> applicationError = new HashMap<>();
-                applicationError.put("SystemError", txResult.getReceipt().getTxLog());
+                applicationError.put("SystemError", txResult.getReceipt().getLog());
                 return applicationError;
             }
         } else {
@@ -225,6 +244,11 @@ public class BlockChainImpl<T, V> implements BlockChain<T, V> {
     }
 
     @Override
+    public ReentrantLock getLock() {
+        return lock;
+    }
+
+    @Override
     public boolean containBranchContract(ContractVersion contractVersion) {
         return getBranchContracts().stream().anyMatch(bc -> bc.getContractVersion().equals(contractVersion));
     }
@@ -239,5 +263,10 @@ public class BlockChainImpl<T, V> implements BlockChain<T, V> {
     @Override
     public void addListener(BranchEventListener listener) {
         listenerList.add(listener);
+    }
+
+    @Override
+    public void addListener(ContractEventListener listener) {
+        contractEventListenerList.add(listener);
     }
 }

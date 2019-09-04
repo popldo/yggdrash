@@ -51,6 +51,7 @@ import io.yggdrash.core.store.PbftBlockStoreMock;
 import io.yggdrash.core.wallet.Wallet;
 import io.yggdrash.proto.PbftProto;
 import org.junit.Assert;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -176,12 +177,11 @@ public class BlockChainTestUtils {
 
         BootFrameworkConfig bootFrameworkConfig = new BootFrameworkConfig(config, genesis.getBranchId());
         BootFrameworkLauncher bootFrameworkLauncher = new BootFrameworkLauncher(bootFrameworkConfig);
-        BundleServiceImpl bundleService = new BundleServiceImpl();
+        BundleServiceImpl bundleService = new BundleServiceImpl(bootFrameworkLauncher.getBundleContext());
         SystemProperties systemProperties = createDefaultSystemProperties();
 
         ContractManager contractManager = ContractManagerBuilder.newInstance()
                 .withGenesis(genesis)
-                .withBootFramework(bootFrameworkLauncher)
                 .withBundleManager(bundleService)
                 .withDefaultConfig(config)
                 .withContractStore(contractStore)
@@ -255,6 +255,24 @@ public class BlockChainTestUtils {
             }
         }
         return blockList.size() > 0 ? blockList : Collections.emptyList();
+    }
+
+    public static Transaction createContractProposeTx(String contractVersion) {
+        return createContractProposeTx(TestConstants.transferWallet(), contractVersion);
+    }
+
+    public static Transaction createContractProposeTx(Wallet wallet, String contractVersion) {
+        return buildTx(ContractTestUtils.contractProposeTxBodyJson(contractVersion),
+                wallet, TestConstants.yggdrash());
+    }
+
+    public static Transaction createContractVoteTx(String txId, boolean agree) {
+        return createContractVoteTx(TestConstants.transferWallet(), txId, agree);
+    }
+
+    public static Transaction createContractVoteTx(Wallet wallet, String txId, boolean agree) {
+        return buildTx(ContractTestUtils.contractVoteTxBodyJson(txId, agree),
+                wallet, TestConstants.yggdrash());
     }
 
     public static Transaction createTransferTx() {

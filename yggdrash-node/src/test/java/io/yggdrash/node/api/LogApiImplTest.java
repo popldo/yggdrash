@@ -94,17 +94,23 @@ public class LogApiImplTest {
     public void getLogsOverallTest() {
         BlockChain bc = branchGroup.getBranch(BranchId.of(branchId));
         BlockChainManager mgr = bc.getBlockChainManager();
+        int contractSize = bc.getBranchContracts().size();
 
         assertEquals("Last Index", 0, mgr.getLastIndex());
-        assertEquals("Tx Count", 3, mgr.countOfTxs());
-        assertEquals("Current Index", 8, logApi.curIndex(branchId));
+        assertEquals("Tx Count", contractSize, mgr.countOfTxs());
 
-        ConsensusBlock<PbftProto.PbftBlock> block = BlockChainTestUtils.createBlockListFilledWithTx(1, 33).get(0);
+        int defaultLogIndex = contractSize + 5;
+        assertEquals("Current Index", defaultLogIndex, logApi.curIndex(branchId));
+
+        int generateTx = 33;
+        ConsensusBlock<PbftProto.PbftBlock> block = BlockChainTestUtils.createBlockListFilledWithTx(1, generateTx).get(0);
         bc.addBlock(block);
 
+        defaultLogIndex += generateTx;
+
         assertEquals("Last Index", 1, mgr.getLastIndex());
-        assertEquals("Tx Count", 36, mgr.countOfTxs());
-        assertEquals("Current Index", 41, logApi.curIndex(branchId));
+        assertEquals("Tx Count", generateTx + contractSize, mgr.countOfTxs());
+        assertEquals("Current Index", defaultLogIndex, logApi.curIndex(branchId));
 
 
         Log log = logApi.getLog(branchId, 33);
@@ -121,7 +127,7 @@ public class LogApiImplTest {
         assertEquals(log.getMsg(), logs.get(0).getMsg());
 
         // Logs of executed transactions when the block was added.
-        List<Log> regLogs = logApi.getLogs(branchId, "Transferred", 0, curIndex);
+        List<Log> regLogs = logApi.getLogs(branchId, "Transfe", 0, curIndex);
         assertEquals(33, regLogs.size());
 
         log = logApi.getLog(branchId, 0);
